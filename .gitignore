@@ -1,0 +1,56 @@
+# ===== Flutter / Dart =====
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.iml
+pubspec.lock
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ===== 构建 / 运行日志与临时输出（含本机路径，不入库）=====
+*.log
+*_exit.txt
+emu_start.txt
+found_flutter.txt
+_git_*
+.tmp_ui_logs/
+.trash_p2/
+.workbuddy/
+
+# ===== 内部文档（本机环境约定 / 踩坑记录，含隐私，不提交）=====
+docs/
+
+# ===== 装机截图 / 导出样张（可能含真实照片，不入库）=====
+shots/
+
+# ===== sqlite3 预编译测试二进制（构建时按 hook 配置另行获取）=====
+sqlite3_libs/
+
+# ===== iOS 生成文件（含本机 SDK 路径）=====
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/ephemeral/
+ios/Runner/GeneratedPluginRegistrant.h
+ios/Runner/GeneratedPluginRegistrant.m
+ios/.gitkeep
+
+# ===== 签名 / 密钥（双保险，android/.gitignore 已覆盖）=====
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+key.properties
+local.properties
+
+# ===== 操作系统杂项 =====
+.DS_Store
+Thumbs.db
