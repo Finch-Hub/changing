@@ -70,6 +70,12 @@ class MinePage extends StatelessWidget {
                     value: settings.cloudBackup,
                     onChanged: settings.setCloudBackup,
                   ),
+                  // 数据批量导入 / 导出（换机迁移）
+                  _NavCell(
+                    icon: Icons.swap_horiz,
+                    label: '备份与恢复',
+                    onTap: () => Navigator.of(context).pushNamed('/backup'),
+                  ),
                   // M2：未上线功能置灰 + 「即将上线」，不再留可点但无反应的行
                   _NavCell(
                     icon: Icons.lock_outline,

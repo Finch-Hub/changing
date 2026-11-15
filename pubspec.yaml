@@ -65,6 +65,12 @@ dependencies:
   # 订阅 / 内购
   in_app_purchase: ^3.2.0
 
+  # 数据备份：ZIP 打包 / 解包（.changing 备份包）
+  archive: ^3.6.1
+
+  # 数据备份：导入时选择备份文件
+  file_picker: ^13.3.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

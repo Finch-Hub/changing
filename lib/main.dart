@@ -1,3 +1,4 @@
+import 'package:changing/pages/backup_page.dart';
 import 'package:changing/pages/capture_page.dart';
 import 'package:changing/pages/compare_page.dart';
 import 'package:changing/pages/home_page.dart';
@@ -58,6 +59,7 @@ class ChangingApp extends StatelessWidget {
           '/mine': (_) => const MinePage(),
           '/project': (_) => const ProjectDetailPage(),
           '/photo_viewer': (_) => const PhotoViewerPage(),
+          '/backup': (_) => const BackupPage(),
         },
         initialRoute: '/',
       ),

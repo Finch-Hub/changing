@@ -1,4 +1,5 @@
 import 'package:changing/models/models.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -124,5 +125,39 @@ class AppDatabase {
   Future<void> deleteCheckIn(String id) async {
     final d = await db;
     await d.delete('checkins', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ---------- 批量导入（备份恢复） ----------
+
+  /// 事务批量导入项目与记录点。
+  /// [replaceProjectIds] 中的项目先删除旧记录与项目行（覆盖更新），
+  /// 随后统一插入；任一步失败整体回滚，不污染现有数据。
+  ///
+  /// [rawProjectRows] / [rawCheckInRows] 仅测试用：直接注入原始行 map，
+  /// 便于构造非法行验证事务回滚；生产调用传模型列表即可。
+  Future<void> importBackupData({
+    List<Project> projects = const [],
+    List<CheckIn> checkins = const [],
+    Set<String> replaceProjectIds = const {},
+    @visibleForTesting List<Map<String, dynamic>>? rawProjectRows,
+    @visibleForTesting List<Map<String, dynamic>>? rawCheckInRows,
+  }) async {
+    final d = await db;
+    final projectRows = rawProjectRows ?? projects.map((e) => e.toMap()).toList();
+    final checkInRows = rawCheckInRows ?? checkins.map((e) => e.toMap()).toList();
+    await d.transaction((txn) async {
+      for (final id in replaceProjectIds) {
+        await txn.delete('checkins', where: 'projectId = ?', whereArgs: [id]);
+        await txn.delete('projects', where: 'id = ?', whereArgs: [id]);
+      }
+      for (final row in projectRows) {
+        await txn.insert('projects', row,
+            conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      for (final row in checkInRows) {
+        await txn.insert('checkins', row,
+            conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+    });
   }
 }
