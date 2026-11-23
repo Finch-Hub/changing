@@ -125,12 +125,25 @@ class CheckIn {
   /// 是否有地理位置信息
   bool get hasLocation => latitude != null && longitude != null;
 
-  /// 用于时间轴标签的「YYYY-MM」格式
+  /// 用于缩时影片字幕的「YYYY-MM」格式（月粒度足够）
   String get monthLabel {
     final y = date.year;
     final m = date.month.toString().padLeft(2, '0');
     return '$y-$m';
   }
+
+  /// U-04：日粒度日期标签。同年「MM-DD」，跨年「YYYY-MM-DD」。
+  /// 健身周拍用户同月内有多次记录，只到月份无法分辨新旧。
+  String get dayLabel {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final md = '${two(date.month)}-${two(date.day)}';
+    if (date.year == DateTime.now().year) return md;
+    return '${date.year}-$md';
+  }
+
+  /// U-04：对比页记录标签「第 N 次 · MM-DD」。
+  /// [index] 为按 date 升序排序后的下标（0 起），序号 = index + 1。
+  String recordLabel(int index) => '第 ${index + 1} 次 · $dayLabel';
 
   Map<String, dynamic> toMap() => {
         'id': id,

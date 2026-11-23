@@ -13,8 +13,10 @@ class AppColors {
   static const surface = Color(0xFFFFFFFF); // 卡片/表面
   static const line = Color(0xFFE9E2D6); // 分隔线 / 未选中描边
   static const textPrimary = Color(0xFF2B2118); // 正文
-  static const textSecondary = Color(0xFF7D7161); // 辅助文字（加深，保证对比度）
-  static const textWeak = Color(0xFFB8AD9F); // 弱化文字（仅装饰性用途）
+  static const textSecondary = Color(0xFF7D7161); // 辅助文字（信息文字统一用此色）
+  // T-01：仅限 chevron 箭头 / 禁用态 / 纯装饰元素，禁止用于信息文字
+  // （#B8AD9F on bg 仅 2.07:1，不达 WCAG 4.5:1）
+  static const textWeak = Color(0xFFB8AD9F);
 
   // 语义色
   static const danger = Color(0xFFD64545); // 危险操作（删除等）
@@ -24,7 +26,11 @@ class AppColors {
 
   // 开关
   static const switchOn = Color(0xFFE8783C);
-  static const switchOff = Color(0xFFE3DCD2); // 关闭态轨道：暖灰，融入页面
+  // T-03：关闭态轨道加深（原 #E3DCD2 on white 仅 1.36:1，几乎看不见开关）
+  static const switchOff = Color(0xFFD3CBBC);
+
+  // T-04：输入框 / 未选中 chip 的实底填充（替代弱描边，块状可点语言）
+  static const fieldFill = Color(0xFFF4EFE7);
 
   // 覆盖层（拍摄页 / 对比视图底）
   static const overlayDark = Color(0x59000000); // rgba(0,0,0,0.35)
@@ -74,6 +80,10 @@ class AppDimens {
     final v = fontSmall(context) - 1;
     return v < 11 ? 11 : v;
   }
+
+  /// T-02：主按钮文字固定 18fp（不随屏宽缩放），配合 w600 进入
+  /// WCAG 大字档（≥18.66fp bold 门槛 3:1），保证橙底白字可读。
+  static const buttonFontSize = 18.0;
 
   // 间距（8 的倍数）
   static const gapXs = 8.0;
@@ -226,7 +236,8 @@ ThemeData buildAppTheme() {
       contentTextStyle: const TextStyle(color: Colors.white, fontSize: 14),
       actionTextColor: AppColors.primaryLight,
     ),
-    // Switch：开启=主色橙轨道，关闭=暖灰轨道，thumb 恒白、无默认描边
+    // Switch：开启=主色橙轨道，关闭=暖灰轨道 + 1px 描边（T-03 保证可见），
+    // thumb 恒白
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.all(Colors.white),
       trackColor: WidgetStateProperty.resolveWith(
@@ -234,12 +245,17 @@ ThemeData buildAppTheme() {
             ? AppColors.primary
             : AppColors.switchOff,
       ),
-      trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+      trackOutlineColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? Colors.transparent
+            : AppColors.textWeak,
+      ),
+      trackOutlineWidth: WidgetStateProperty.all(1),
     ),
     // 输入框：暖米白填充底，聚焦主色描边
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xFFF4EFE7),
+      fillColor: AppColors.fieldFill,
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
@@ -256,6 +272,8 @@ ThemeData buildAppTheme() {
       ),
     ),
     // 主按钮：橙实底白字、16 圆角（对话框内用 TextButton 不受影响）
+    // T-02：文字固定 18fp + w600 进入 WCAG「大字档」（3:1），
+    // 橙底白字 2.92:1 在小字档不合格；保留暖橙品牌色不改深棕。
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.primary,
@@ -264,7 +282,25 @@ ThemeData buildAppTheme() {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
         ),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(
+          fontSize: AppDimens.buttonFontSize,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+    // T-02：FilledButton 与主按钮同档（详情页「拍照记录」等）
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        minimumSize: const Size.fromHeight(52),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
+        ),
+        textStyle: const TextStyle(
+          fontSize: AppDimens.buttonFontSize,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     ),
   );

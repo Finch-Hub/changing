@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:changing/models/models.dart';
 import 'package:changing/providers/project_repository.dart';
@@ -33,10 +34,27 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
   /// V2：顶栏 + 信息面板显隐（默认显示，单击照片切换）
   bool _showInfo = true;
 
+  /// U-09：是否启用同图高斯模糊背景。
+  /// 性能红线：模糊每帧成本高，仅在查看器生效并用 RepaintBoundary 隔离；
+  /// 系统开启「减弱动效」或低刷新率设备降级为纯黑（保持原状）。
+  bool _blurEnabled = true;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 无障碍「减弱动效」偏好下不做模糊（同时照顾低端机的降级诉求）。
+    // 必须在 didChangeDependencies 读取 MediaQuery——initState 中依赖
+    // InheritedWidget 会抛 dependOnInheritedWidgetOfExactType 断言。
+    final disable = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (_blurEnabled == disable) {
+      setState(() => _blurEnabled = !disable);
+    }
   }
 
   TransformationController _transformFor(int i) =>
@@ -173,7 +191,8 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
       // V2：顶栏随单击显隐（沉浸式看大图）；V3：分享 / 删除入口
       appBar: _showInfo
           ? AppBar(
-              backgroundColor: Colors.black,
+              // U-09：顶栏透明浮在模糊背景上，不再是一条纯黑横带
+              backgroundColor: const Color(0x66000000),
               foregroundColor: Colors.white,
               elevation: 0,
               title: Text(
@@ -197,6 +216,14 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
           : null,
       body: Stack(
         children: [
+          // U-09：同图高斯模糊 cover 背景，消除非正比照片的大片纯黑边。
+          // contain 主体保持不变（变化记录不许裁图），仅底层铺模糊同图。
+          if (_blurEnabled)
+            Positioned.fill(
+              child: RepaintBoundary(
+                child: _BlurBackdrop(path: c.photoPath),
+              ),
+            ),
           // 图片区铺满全屏（可左右滑动 + 双击缩放 + 单击切换面板）
           Positioned.fill(
             child: PageView.builder(
@@ -229,7 +256,7 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
               offset: _showInfo ? Offset.zero : const Offset(0, 1),
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOut,
-              child: _InfoPanel(checkIn: c),
+              child: _InfoPanel(checkIn: c, blur: _blurEnabled),
             ),
           ),
           // V2：隐藏面板时给一个可点的「信息」入口，避免用户找不到恢复方式
@@ -354,11 +381,48 @@ class _ZoomablePhotoState extends State<_ZoomablePhoto> {
   }
 }
 
+/// U-09：同图高斯模糊 cover 背景。
+/// 底层用同一张照片 cover 铺满（消除纯黑边），叠加 blur 40 + 35% 黑色压暗，
+/// 保证前景 contain 主体与白色信息文字始终可读。
+/// 仅在查看器使用，外层 RepaintBoundary 隔离重绘；对比/导出不受影响。
+class _BlurBackdrop extends StatelessWidget {
+  final String path;
+  const _BlurBackdrop({required this.path});
+
+  @override
+  Widget build(BuildContext context) {
+    final file = File(path);
+    if (!file.existsSync()) return const ColoredBox(color: Colors.black);
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.file(
+            file,
+            fit: BoxFit.cover,
+            // 背景只做氛围，降采样解码省内存（主体仍全分辨率）
+            cacheWidth: 480,
+            errorBuilder: (_, __, ___) =>
+                const ColoredBox(color: Colors.black),
+          ),
+          BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+            child: const ColoredBox(color: Color(0x59000000)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 底部信息面板：时间 + 地理位置 + 备注
 class _InfoPanel extends StatelessWidget {
   final CheckIn checkIn;
 
-  const _InfoPanel({required this.checkIn});
+  /// U-09：是否启用毛玻璃（低端机 / 减弱动效降级为半透明纯黑）
+  final bool blur;
+
+  const _InfoPanel({required this.checkIn, this.blur = true});
 
   @override
   Widget build(BuildContext context) {
@@ -371,34 +435,42 @@ class _InfoPanel extends StatelessWidget {
       locationText = '${lat.abs().toStringAsFixed(5)}° $latDir, '
           '${lng.abs().toStringAsFixed(5)}° $lngDir';
     }
+    // U-09：面板由纯黑改半透明 + 毛玻璃，时间/备注直接浮在画面上，
+    // 不再「黑上叠黑」把页面切成两段
+    final panel = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      color: const Color(0xB3000000), // 70% 黑，白字对比充足
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _row(context, Icons.schedule, '时间', _formatTime(checkIn.date)),
+          if (checkIn.hasLocation) ...[
+            const SizedBox(height: 10),
+            _row(
+              context,
+              Icons.location_on_outlined,
+              '位置',
+              locationText ?? '未知位置',
+            ),
+          ],
+          if (checkIn.note != null && checkIn.note!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _row(context, Icons.notes_outlined, '备注', checkIn.note!),
+          ],
+        ],
+      ),
+    );
     return SafeArea(
       top: false,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-        decoration: const BoxDecoration(
-          color: Colors.black,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _row(context, Icons.schedule, '时间', _formatTime(checkIn.date)),
-            if (checkIn.hasLocation) ...[
-              const SizedBox(height: 10),
-              _row(
-                context,
-                Icons.location_on_outlined,
-                '位置',
-                locationText ?? '未知位置',
+      child: blur
+          ? ClipRect(
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: panel,
               ),
-            ],
-            if (checkIn.note != null && checkIn.note!.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              _row(context, Icons.notes_outlined, '备注', checkIn.note!),
-            ],
-          ],
-        ),
-      ),
+            )
+          : panel,
     );
   }
 
@@ -406,7 +478,8 @@ class _InfoPanel extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: Colors.white54),
+        // T-05：标签列由 white54 升 white70，半透明底上更清晰
+        Icon(icon, size: 18, color: Colors.white70),
         const SizedBox(width: 8),
         SizedBox(
           width: 40,
@@ -414,7 +487,7 @@ class _InfoPanel extends StatelessWidget {
             label,
             style: TextStyle(
               fontSize: AppDimens.fontSmall(context) * 0.9,
-              color: Colors.white54,
+              color: Colors.white70,
             ),
           ),
         ),

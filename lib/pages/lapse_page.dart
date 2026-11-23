@@ -261,7 +261,7 @@ class _LapsePageState extends State<LapsePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 视频预览（L1：全宽 + 3:4 匹配输出比例）
+          // 视频预览（U-05：1:1 上限，首屏直接露出操作按钮）
           _VideoPreview(
             count: filtered.length,
             player: _player,
@@ -310,8 +310,9 @@ class _LapsePageState extends State<LapsePage> {
                                 '${_fmtDate(_customRange!.end)}',
                         style: TextStyle(
                           fontSize: AppDimens.fontSmall(context),
+                          // T-01：占位提示是信息文字，非禁用态
                           color: _customRange == null
-                              ? AppColors.textWeak
+                              ? AppColors.textSecondary
                               : AppColors.textPrimary,
                         ),
                       ),
@@ -351,28 +352,32 @@ class _LapsePageState extends State<LapsePage> {
           ),
           const SizedBox(height: 24),
           // 操作按钮
-          Row(
-            children: [
-              Expanded(
-                child: SecondaryButton(
-                  label: '预览',
-                  icon: Icons.play_arrow,
-                  onPressed: _player == null || !_player!.value.isInitialized
-                      ? null
-                      : () => _player!.play(),
+          // U-05：底部补足安全区 + 16dp，避免「生成并导出」被屏幕下沿切半
+          Padding(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).padding.bottom + 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SecondaryButton(
+                    label: '预览',
+                    icon: Icons.play_arrow,
+                    onPressed: _player == null || !_player!.value.isInitialized
+                        ? null
+                        : () => _player!.play(),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: PrimaryButton(
-                  label: _generating ? '生成中…' : '生成并导出',
-                  icon: Icons.movie_outlined,
-                  onPressed: _generating ? null : _generate,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: PrimaryButton(
+                    label: _generating ? '生成中…' : '生成并导出',
+                    icon: Icons.movie_outlined,
+                    onPressed: _generating ? null : _generate,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 32),
         ],
       ),
     );
@@ -396,11 +401,13 @@ class _VideoPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // L1：全宽 + 3:4（与 FFmpeg 输出 1080×1440 一致），不再收缩成窄条
+    // U-05：预览框由 3:4 改 1:1（约省 120dp），让「预览 / 生成并导出」
+    // 两个按钮在 411dp 机型首屏完整可见。输出仍为 1080×1440，
+    // 播放时由下方 FittedBox(cover) 裁切适配，不影响成片比例。
     return SizedBox(
       width: double.infinity,
       child: AspectRatio(
-        aspectRatio: 3 / 4,
+        aspectRatio: 1,
         child: Container(
           decoration: BoxDecoration(
             color: Colors.black,

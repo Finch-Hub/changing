@@ -44,10 +44,10 @@ class CompareExportService {
     img.compositeImage(canvas, lResized, dstX: 0, dstY: 0);
     img.compositeImage(canvas, rResized, dstX: lResized.width + gap, dstY: 0);
 
-    // 日期标注
+    // 日期标注（U-04：精确到日，同月两次记录导出后也能分辨）
     final lLabel = img.drawString(
       canvas,
-      left.monthLabel,
+      _dateLabel(left.date),
       font: img.arial24,
       x: 8,
       y: targetH + 12,
@@ -55,7 +55,7 @@ class CompareExportService {
     );
     final rLabel = img.drawString(
       lLabel,
-      right.monthLabel,
+      _dateLabel(right.date),
       font: img.arial24,
       x: lResized.width + gap + 8,
       y: targetH + 12,
@@ -72,5 +72,11 @@ class CompareExportService {
     );
     await File(outPath).writeAsBytes(Uint8List.fromList(img.encodeJpg(rLabel)));
     return outPath;
+  }
+
+  /// U-04：导出图日期标注（完整 yyyy-MM-dd，脱离 App 上下文也能读懂）
+  static String _dateLabel(DateTime d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${d.year}-${two(d.month)}-${two(d.day)}';
   }
 }

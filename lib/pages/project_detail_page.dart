@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:changing/models/models.dart';
 import 'package:changing/providers/project_repository.dart';
 import 'package:changing/theme/app_theme.dart';
 import 'package:changing/widgets/app_photo.dart';
+import 'package:changing/widgets/slider_compare.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -110,7 +112,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                           arguments: {'projectId': _projectId}),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(52),
-                    side: const BorderSide(color: AppColors.textWeak),
+                    // T-04：描边用 line，与 SecondaryButton 统一
+                    side: const BorderSide(color: AppColors.line),
                     shape: RoundedRectangleBorder(
                       borderRadius:
                           BorderRadius.circular(AppDimens.radiusMedium),
@@ -147,27 +150,44 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
 
   Widget _buildBody() {
     if (_checkIns.isEmpty) {
+      // U-08：空态用相机图标 + 三步引导，替代大灰图占半屏
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.photo_library_outlined,
-                size: 80, color: AppColors.textWeak),
-            const SizedBox(height: 16),
-            Text(
-              '还没有记录点',
-              style: TextStyle(
-                  fontSize: AppDimens.fontTitle(context),
-                  color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '点击下方「拍照记录」开始记录变化',
-              style: TextStyle(
-                  fontSize: AppDimens.fontSmall(context),
-                  color: AppColors.textWeak),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 88,
+                height: 88,
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryLight,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.photo_camera_outlined,
+                    size: 44, color: AppColors.primaryDark),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                '还没有记录点',
+                style: TextStyle(
+                    fontSize: AppDimens.fontTitle(context),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '点击下方「拍照记录」开始记录变化',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: AppDimens.fontSmall(context),
+                    // T-01：引导文案是信息文字，不用装饰色
+                    color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 28),
+              const _ThreeStepGuide(),
+            ],
+          ),
         ),
       );
     }
@@ -269,6 +289,10 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   /// ≤2 张：大卡片（单张近全宽 / 两张并排），不再挤在小网格里；
   /// ≥12 张：按月分组 + 吸顶月份头，长列表滚动时始终知道在哪个月；
   /// 其余：常规网格（可捏合调列数）。
+  ///
+  /// U-08：2–11 张时照片往往只占半屏，下方大片死区。在照片区下方追加
+  /// 「第一张 → 最近一张」迷你滑块对比（约 260dp），把死区变成变化叙事，
+  /// 点击进入对比页并带上首尾两张的初始 index。
   Widget _buildPhotoArea(double margin) {
     if (_checkIns.length <= 2) {
       return _buildLargeCards(margin);
@@ -276,23 +300,46 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     if (_checkIns.length >= 12) {
       return _buildMonthGrouped(margin);
     }
-    return GridView.builder(
+    return ListView(
       padding: EdgeInsets.symmetric(horizontal: margin),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: _columnCount,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      itemCount: _checkIns.length,
-      itemBuilder: (_, i) => _PhotoGridItem(
-        checkIn: _checkIns[i],
-        checkIns: _checkIns,
-        index: i,
-      ),
+      children: [
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: _columnCount,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+          ),
+          itemCount: _checkIns.length,
+          itemBuilder: (_, i) => _PhotoGridItem(
+            checkIn: _checkIns[i],
+            checkIns: _checkIns,
+            index: i,
+          ),
+        ),
+        // U-08：死区利用——首尾迷你对比（_checkIns 为降序：0 最新、last 最早）
+        if (_checkIns.length >= 2) ...[
+          const SizedBox(height: 24),
+          _MiniComparePreview(
+            oldest: _checkIns.last,
+            newest: _checkIns.first,
+            oldestLabel: _checkIns.last.recordLabel(0),
+            newestLabel:
+                _checkIns.first.recordLabel(_checkIns.length - 1),
+            onOpen: () => Navigator.pushNamed(context, '/compare', arguments: {
+              'projectId': _projectId,
+              'leftIndex': 0,
+              'rightIndex': _checkIns.length - 1,
+            }),
+          ),
+        ],
+      ],
     );
   }
 
   /// D4：少量照片大卡片布局
+  /// U-08：2 张时同样在下方补迷你对比，填掉半屏死区
   Widget _buildLargeCards(double margin) {
     final single = _checkIns.length == 1;
     return ListView(
@@ -325,6 +372,20 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               ],
             ],
           ),
+        if (!single) ...[
+          const SizedBox(height: 24),
+          _MiniComparePreview(
+            oldest: _checkIns.last,
+            newest: _checkIns.first,
+            oldestLabel: _checkIns.last.recordLabel(0),
+            newestLabel: _checkIns.first.recordLabel(_checkIns.length - 1),
+            onOpen: () => Navigator.pushNamed(context, '/compare', arguments: {
+              'projectId': _projectId,
+              'leftIndex': 0,
+              'rightIndex': _checkIns.length - 1,
+            }),
+          ),
+        ],
       ],
     );
   }
@@ -471,6 +532,149 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   }
 }
 
+/// U-08：空态三步引导「1 拍照 → 2 对齐 → 3 坚持」
+class _ThreeStepGuide extends StatelessWidget {
+  const _ThreeStepGuide();
+
+  @override
+  Widget build(BuildContext context) {
+    const steps = [
+      (Icons.photo_camera_outlined, '拍照'),
+      (Icons.center_focus_strong_outlined, '对齐'),
+      (Icons.trending_up, '坚持'),
+    ];
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < steps.length; i++) ...[
+          if (i > 0)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10),
+              child: Icon(Icons.arrow_forward,
+                  size: 14, color: AppColors.textWeak),
+            ),
+          Column(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.fieldFill,
+                  borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
+                ),
+                child: Icon(steps[i].$1,
+                    size: 22, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${i + 1} ${steps[i].$2}',
+                style: TextStyle(
+                  fontSize: AppDimens.fontSmall(context),
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// U-08：迷你滑块对比预览——把「照片少时的半屏死区」变成变化叙事。
+/// 复用对比页的 [SliderCompare]，可直接拖动扫视首尾差异；
+/// 点标题行进入完整对比页（带首尾初始 index）。
+class _MiniComparePreview extends StatefulWidget {
+  final CheckIn oldest;
+  final CheckIn newest;
+  final String oldestLabel;
+  final String newestLabel;
+  final VoidCallback onOpen;
+
+  const _MiniComparePreview({
+    required this.oldest,
+    required this.newest,
+    required this.oldestLabel,
+    required this.newestLabel,
+    required this.onOpen,
+  });
+
+  @override
+  State<_MiniComparePreview> createState() => _MiniComparePreviewState();
+}
+
+class _MiniComparePreviewState extends State<_MiniComparePreview> {
+  double _pos = 0.5;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: widget.onOpen,
+          borderRadius: BorderRadius.circular(AppDimens.radiusSmall),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                const Icon(Icons.compare_arrows,
+                    size: 18, color: AppColors.primaryDark),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '看看变化 · 第一张 → 最近一张',
+                    style: TextStyle(
+                      fontSize: AppDimens.fontBody(context),
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                Text(
+                  '完整对比',
+                  style: TextStyle(
+                    fontSize: AppDimens.fontSmall(context),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryDark,
+                  ),
+                ),
+                const Icon(Icons.chevron_right,
+                    size: 18, color: AppColors.textWeak),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
+          child: SizedBox(
+            height: 260,
+            width: double.infinity,
+            child: SliderCompare(
+              leftFile: File(widget.oldest.photoPath),
+              rightFile: File(widget.newest.photoPath),
+              leftLabel: widget.oldestLabel,
+              rightLabel: widget.newestLabel,
+              pos: _pos,
+              fit: BoxFit.cover,
+              onPos: (p) => setState(() => _pos = p),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '左右拖动分隔线，扫视这段时间的变化',
+          style: TextStyle(
+            fontSize: AppDimens.fontSmall(context),
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// D4：月份分组（key 用于相邻合并，startIndex 保留组内首张的全局索引）
 class _MonthGroup {
   final String key;
@@ -526,7 +730,8 @@ class _MonthHeaderDelegate extends SliverPersistentHeaderDelegate {
             '$count 张',
             style: TextStyle(
               fontSize: AppDimens.fontSmall(context),
-              color: AppColors.textWeak,
+              // T-01：月分组张数是信息文字
+              color: AppColors.textSecondary,
             ),
           ),
         ],

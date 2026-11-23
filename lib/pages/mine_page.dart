@@ -1,16 +1,17 @@
-import 'package:changing/providers/app_settings.dart';
 import 'package:changing/theme/app_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 /// 「我的」页面
 /// 对应 PRD FR-07 隐私保护、FR-08 商业化。
+///
+/// U-01/02/03（UI 改动报告 2026-11-23）：本页只呈现「真实存在的能力」。
+/// 会员订阅 / 云端备份 / 应用锁均无后端实现，统一按 comingSoon 条目展示，
+/// 不再提供点击无反应的胶囊按钮或「开了却不生效」的开关。
 class MinePage extends StatelessWidget {
   const MinePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<AppSettings>();
     final margin = AppDimens.margin(context);
 
     return Scaffold(
@@ -49,10 +50,10 @@ class MinePage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              // 会员卡
+              // 会员卡（U-01：只展示真实的本地存储能力）
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: margin),
-                child: _MemberCard(premium: settings.premium),
+                child: const _MemberCard(),
               ),
               const SizedBox(height: 24),
               // 存储与同步
@@ -60,15 +61,13 @@ class MinePage extends StatelessWidget {
               _SettingsGroup(
                 margin: margin,
                 children: [
-                  _SwitchCell(
+                  // U-02：云端备份无后端实现，空开关会误导用户以为照片已安全。
+                  // 降级为「即将上线」条目；真实的换机迁移走下方「备份与恢复」。
+                  _NavCell(
                     icon: Icons.cloud_outlined,
                     label: '云端备份',
-                    // M3：副文案显示上次备份时间 / 尚未备份
-                    subtitle: settings.lastBackupAt == null
-                        ? '尚未备份'
-                        : '上次备份：${_formatBackupTime(settings.lastBackupAt!)}',
-                    value: settings.cloudBackup,
-                    onChanged: settings.setCloudBackup,
+                    comingSoon: true,
+                    onTap: () => _comingSoon(context, '云端备份'),
                   ),
                   // 数据批量导入 / 导出（换机迁移）
                   _NavCell(
@@ -97,11 +96,12 @@ class MinePage extends StatelessWidget {
                     comingSoon: true,
                     onTap: () => _comingSoon(context, '提醒设置'),
                   ),
-                  _SwitchCell(
+                  // U-03：应用锁未接 local_auth，开启后并不拦截，降为「即将上线」。
+                  _NavCell(
                     icon: Icons.fingerprint,
                     label: '应用锁',
-                    value: settings.appLock,
-                    onChanged: settings.setAppLock,
+                    comingSoon: true,
+                    onTap: () => _comingSoon(context, '应用锁'),
                   ),
                   _NavCell(
                     icon: Icons.description_outlined,
@@ -110,22 +110,14 @@ class MinePage extends StatelessWidget {
                   ),
                 ],
               ),
-              // 底部留白：首页 TabBar 高约 98+，避免末项被遮挡
-              const SizedBox(height: 120),
+              // 底部留白：首页 TabBar 高约 84+安全区（U-07），避免末项被遮挡
+              const SizedBox(height: 108),
             ],
           ),
         ),
       ),
     );
   }
-}
-
-/// M3：备份时间格式化（同年省年份）
-String _formatBackupTime(DateTime d) {
-  String two(int n) => n.toString().padLeft(2, '0');
-  final md = '${two(d.month)}-${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
-  if (d.year == DateTime.now().year) return md;
-  return '${d.year}-$md';
 }
 
 /// M2：未上线功能点击反馈（替代死回调）
@@ -173,10 +165,13 @@ void _showPrivacyPolicy(BuildContext context) {
   );
 }
 
-/// 会员卡（渐变背景）
+/// 账户卡（渐变背景）
+///
+/// U-01：会员订阅尚未接入（`in_app_purchase` 仅存在于 pubspec），
+/// 「升级会员」胶囊与「云端备份 · 无限项目 / 3 个项目」权益文案均无代码支撑，
+/// 一并删除。卡片只陈述真实能力：本地存储、不限项目数量。
 class _MemberCard extends StatelessWidget {
-  final bool premium;
-  const _MemberCard({required this.premium});
+  const _MemberCard();
 
   @override
   Widget build(BuildContext context) {
@@ -190,118 +185,51 @@ class _MemberCard extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(AppDimens.radiusLarge),
       ),
-      // 不设固定高度：小屏（如 320 宽）下「升级会员」按钮与文字横向挤不下会
-      // 溢出，改为内容自适应高度，按钮在窄屏自动换到下一行
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 280;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // M3：头像 84 → 56dp，会员卡整体更紧凑；会员加皇冠标识
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: const BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            '记',
-                            style: TextStyle(
-                              fontSize: AppDimens.fontTitle(context),
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (premium)
-                        const Positioned(
-                          right: -4,
-                          top: -6,
-                          child: Icon(Icons.workspace_premium,
-                              size: 22, color: Color(0xFFE8B93C)),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          premium ? '会员版' : '免费版',
-                          style: TextStyle(
-                            fontSize: AppDimens.fontTitle(context),
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          premium ? '云端备份 · 无限项目' : '本地存储 · 3 个项目',
-                          style: TextStyle(
-                            fontSize: AppDimens.fontSmall(context),
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (!premium && !compact)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        borderRadius:
-                            BorderRadius.circular(AppDimens.radiusMedium),
-                        border: Border.all(color: AppColors.primaryDark),
-                      ),
-                      child: Text(
-                        '升级会员',
-                        style: TextStyle(
-                          fontSize: AppDimens.fontSmall(context),
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primaryDark,
-                        ),
-                      ),
-                    ),
-                ],
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: AppColors.primary,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                '记',
+                style: TextStyle(
+                  fontSize: AppDimens.fontTitle(context),
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
-              // 窄屏：升级会员按钮换行放到底部
-              if (!premium && compact) ...[
-                const SizedBox(height: 12),
-                Container(
-                  alignment: Alignment.center,
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
-                    border: Border.all(color: AppColors.primaryDark),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '我的记录',
+                  style: TextStyle(
+                    fontSize: AppDimens.fontTitle(context),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
                   ),
-                  child: Text(
-                    '升级会员',
-                    style: TextStyle(
-                      fontSize: AppDimens.fontSmall(context),
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primaryDark,
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '本地存储 · 不限项目',
+                  style: TextStyle(
+                    fontSize: AppDimens.fontSmall(context),
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
-            ],
-          );
-        },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -354,64 +282,6 @@ class _SettingsGroup extends StatelessWidget {
   }
 }
 
-class _SwitchCell extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  /// M3：可选副文案（如云端备份的「上次备份：…」）
-  final String? subtitle;
-
-  const _SwitchCell({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.onChanged,
-    this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.textSecondary, size: 24),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                      fontSize: AppDimens.fontBody(context),
-                      color: AppColors.textPrimary),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle!,
-                    style: TextStyle(
-                        fontSize: AppDimens.fontCaption(context),
-                        color: AppColors.textWeak),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Switch(
-            value: value,
-            activeThumbColor: AppColors.switchOn,
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _NavCell extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -436,9 +306,9 @@ class _NavCell extends StatelessWidget {
         child: Row(
           children: [
             Icon(icon,
-                color: comingSoon
-                    ? AppColors.textWeak
-                    : AppColors.textSecondary,
+                // T-01：comingSoon 行仍可点击（有 SnackBar 反馈），非禁用态，
+                // 图标统一 textSecondary 保证 3:1 可辨
+                color: AppColors.textSecondary,
                 size: 24),
             const SizedBox(width: 16),
             Expanded(
@@ -447,7 +317,7 @@ class _NavCell extends StatelessWidget {
                 style: TextStyle(
                     fontSize: AppDimens.fontBody(context),
                     color: comingSoon
-                        ? AppColors.textWeak
+                        ? AppColors.textSecondary
                         : AppColors.textPrimary),
               ),
             ),
@@ -456,14 +326,15 @@ class _NavCell extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.background,
+                  color: AppColors.fieldFill,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   '即将上线',
                   style: TextStyle(
                     fontSize: AppDimens.fontCaption(context),
-                    color: AppColors.textWeak,
+                    // T-01：状态标签是信息文字
+                    color: AppColors.textSecondary,
                   ),
                 ),
               )

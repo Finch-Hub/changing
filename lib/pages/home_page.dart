@@ -2,6 +2,7 @@ import 'package:changing/models/models.dart';
 import 'package:changing/pages/mine_page.dart';
 import 'package:changing/providers/project_repository.dart';
 import 'package:changing/theme/app_theme.dart';
+import 'package:changing/widgets/app_photo.dart';
 import 'package:changing/widgets/common.dart';
 import 'package:changing/widgets/project_card.dart';
 import 'package:flutter/material.dart';
@@ -75,30 +76,97 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     // 多项目时让用户选择要记录的项目
+    // U-06：加拖拽把手 + 语义标题 + 项目封面/上次记录，
+    // 让用户一眼知道「这是什么操作、每行是哪个项目、怎么取消」。
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surface,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => SafeArea(
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: projects.length,
-          itemBuilder: (_, i) => ListTile(
-            leading: const Icon(Icons.photo_camera_outlined,
-                color: AppColors.primary),
-            title: Text(projects[i].name),
-            subtitle: Text('${projects[i].count} 张记录'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.pushNamed(context, '/capture',
-                  arguments: {'projectId': projects[i].id});
-            },
-          ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 拖拽把手（32dp 区域，暗示可下滑关闭）
+            SizedBox(
+              height: 32,
+              child: Center(
+                child: Container(
+                  width: 32,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.line,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '拍照记录到哪个项目？',
+                  style: TextStyle(
+                    fontSize: AppDimens.fontTitle(ctx),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.only(bottom: 8),
+                itemCount: projects.length,
+                itemBuilder: (_, i) {
+                  final p = projects[i];
+                  final last = repo.lastDateOf(p.id);
+                  return ListTile(
+                    leading: _ProjectThumb(project: p),
+                    title: Text(
+                      p.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: AppDimens.fontBody(ctx),
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    subtitle: Text(
+                      last == null
+                          ? '${p.count} 张记录 · 还没有记录'
+                          : '${p.count} 张记录 · 上次：${_agoText(last)}',
+                      style: TextStyle(
+                        fontSize: AppDimens.fontSmall(ctx),
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Navigator.pushNamed(context, '/capture',
+                          arguments: {'projectId': p.id});
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  /// U-06：「上次：x 天前」相对时间文案
+  static String _agoText(DateTime d) {
+    final diff = DateTime.now().difference(d);
+    if (diff.inDays >= 1) return '${diff.inDays} 天前';
+    if (diff.inHours >= 1) return '${diff.inHours} 小时前';
+    return '刚刚';
   }
 
   Widget _buildHome(ProjectRepository repo, List<Project> projects) {
@@ -106,34 +174,39 @@ class _HomePageState extends State<HomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 导航区
+        // 导航区（U-07：三行压两行——品牌名与项目数合并为一行标题，
+        // 英文 slogan 移到「我的」页，首屏让出约 60dp 给项目卡片）
         Padding(
-          padding: EdgeInsets.fromLTRB(margin, 16, margin, 0),
+          padding: EdgeInsets.fromLTRB(margin, 16, margin, 12),
           child: Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '观变',
-                      style: TextStyle(
-                        fontSize: AppDimens.fontDisplay(context),
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '观变',
+                        style: TextStyle(
+                          fontSize: AppDimens.fontDisplay(context),
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Everything is changing',
-                      style: TextStyle(
-                        fontSize: AppDimens.fontSmall(context),
-                        color: AppColors.textSecondary,
+                      TextSpan(
+                        text: ' · ${projects.length} 个进行中',
+                        style: TextStyle(
+                          fontSize: AppDimens.fontSmall(context),
+                          // T-01：项目数是信息文字
+                          color: AppColors.textSecondary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 12),
               GestureDetector(
                 onTap: () => _showCreateDialog(context),
                 child: Container(
@@ -147,18 +220,6 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ],
-          ),
-        ),
-        // H3：项目数并入列表上方一行弱文字（原先独占一行 + 24 间距，
-        // 头部三行压两行，首屏多露出约 40dp 给项目卡片）
-        Padding(
-          padding: EdgeInsets.fromLTRB(margin, 12, margin, 12),
-          child: Text(
-            '${projects.length} 个进行中的变化项目',
-            style: TextStyle(
-              fontSize: AppDimens.fontSmall(context),
-              color: AppColors.textWeak,
-            ),
           ),
         ),
         // 项目列表 / 空态
@@ -244,7 +305,8 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
                 hintText: '如：减脂 90 天',
                 hintStyle: TextStyle(
                   fontSize: AppDimens.fontBody(context),
-                  color: AppColors.textWeak,
+                  // T-01：输入提示需可读，用 textSecondary
+                  color: AppColors.textSecondary,
                 ),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -394,12 +456,10 @@ class _TagChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? AppColors.primaryLight : AppColors.background,
+          // T-04：未选中由「白底 + 1px 弱线」改 fieldFill 实底、删描边，
+          // 与输入框 token 统一，块状可点语言更明确
+          color: selected ? AppColors.primaryLight : AppColors.fieldFill,
           borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
-          // 未选中态加描边，避免与对话框白底几乎无边界
-          border: selected
-              ? null
-              : Border.all(color: AppColors.line, width: 1),
         ),
         // 小屏 3 列等宽下「自定义 / 不定期」可能超宽：
         // 用 scaleDown 整体缩字而不是截断成「自…」
@@ -415,6 +475,47 @@ class _TagChip extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// U-06：项目选择弹层的 40dp 圆角封面。
+/// 有封面用真实照片，无封面用类型渐变 + 类型字，保证每行可辨认。
+class _ProjectThumb extends StatelessWidget {
+  final Project project;
+  const _ProjectThumb({required this.project});
+
+  @override
+  Widget build(BuildContext context) {
+    final cover = project.coverPath;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppDimens.radiusSmall),
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: cover != null
+            ? AppPhoto(path: cover)
+            : Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: project.type.palette,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    project.type.label,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
       ),
     );
   }
@@ -445,7 +546,8 @@ class _EmptyState extends StatelessWidget {
             '创建第一个项目，开始记录变化',
             style: TextStyle(
                 fontSize: AppDimens.fontSmall(context),
-                color: AppColors.textWeak),
+                // T-01：空态引导是信息文字
+                color: AppColors.textSecondary),
           ),
           const SizedBox(height: 24),
           PrimaryButton(label: '新建项目', onPressed: onCreate),

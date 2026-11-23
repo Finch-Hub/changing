@@ -21,8 +21,9 @@ class ProjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 封面高度流式：随屏宽缩放（基准 220，小屏缩小、大屏放大）
-    final coverHeight = 220.0 * AppDimens.scale(context);
+    // 封面高度流式：随屏宽缩放（U-07：基准 220 → 184，单卡省 36dp，
+    // 首屏可完整露出 2 张卡 + 第三张顶部，形成明确可滚信号）
+    final coverHeight = 184.0 * AppDimens.scale(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(

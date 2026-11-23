@@ -245,7 +245,8 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
             hintText: '记录此刻的想法（可选）',
             hintStyle: TextStyle(
               fontSize: AppDimens.fontBody(ctx),
-              color: AppColors.textWeak,
+              // T-01：输入提示需可读，用 textSecondary
+              color: AppColors.textSecondary,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppDimens.radiusMedium),

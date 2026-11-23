@@ -1,4 +1,5 @@
 import 'package:changing/models/models.dart';
+import 'package:changing/pages/compare_page.dart' show resolveCompareIndices;
 import 'package:changing/pages/home_page.dart';
 import 'package:changing/providers/project_repository.dart';
 import 'package:changing/providers/app_settings.dart';
@@ -72,6 +73,37 @@ void main() {
       expect(c.monthLabel, '2026-03');
     });
 
+    test('U-04 dayLabel 同年只到 MM-DD、跨年带年份', () {
+      final thisYear = DateTime.now().year;
+      final c = CheckIn(
+        id: 'c1',
+        projectId: 'p1',
+        date: DateTime(thisYear, 3, 5),
+        photoPath: '/a.jpg',
+      );
+      expect(c.dayLabel, '03-05');
+      final old = CheckIn(
+        id: 'c2',
+        projectId: 'p1',
+        date: DateTime(thisYear - 1, 11, 8),
+        photoPath: '/b.jpg',
+      );
+      expect(old.dayLabel, '${thisYear - 1}-11-08');
+    });
+
+    test('U-04 recordLabel 序号 = 升序下标 + 1，同月两次可区分', () {
+      final y = DateTime.now().year;
+      final a = CheckIn(
+          id: 'a', projectId: 'p1', date: DateTime(y, 11, 1), photoPath: '/a');
+      final b = CheckIn(
+          id: 'b', projectId: 'p1', date: DateTime(y, 11, 8), photoPath: '/b');
+      // 两条记录同属 11 月：monthLabel 相同，recordLabel 必须不同
+      expect(a.monthLabel, b.monthLabel);
+      expect(a.recordLabel(0), '第 1 次 · 11-01');
+      expect(b.recordLabel(1), '第 2 次 · 11-08');
+      expect(a.recordLabel(0) == b.recordLabel(1), isFalse);
+    });
+
     test('toMap / fromMap 往返一致', () {
       final c = CheckIn(
         id: 'c1',
@@ -83,6 +115,42 @@ void main() {
       final restored = CheckIn.fromMap(c.toMap());
       expect(restored.date, c.date);
       expect(restored.note, '备注');
+    });
+  });
+
+  group('U-08 对比页初始下标归一化', () {
+    test('未传入时退回首尾', () {
+      final r = resolveCompareIndices(length: 5);
+      expect(r.left, 0);
+      expect(r.right, 4);
+    });
+
+    test('传入合法首尾 index 原样保留', () {
+      final r = resolveCompareIndices(length: 4, initLeft: 0, initRight: 3);
+      expect(r.left, 0);
+      expect(r.right, 3);
+    });
+
+    test('越界裁剪到合法范围', () {
+      final r = resolveCompareIndices(length: 3, initLeft: -5, initRight: 99);
+      expect(r.left, 0);
+      expect(r.right, 2);
+    });
+
+    test('左右相等或倒置时退回首尾（保证两张不同、旧在前）', () {
+      final same = resolveCompareIndices(length: 4, initLeft: 2, initRight: 2);
+      expect(same.left, 0);
+      expect(same.right, 3);
+      final reversed =
+          resolveCompareIndices(length: 4, initLeft: 3, initRight: 1);
+      expect(reversed.left, 0);
+      expect(reversed.right, 3);
+    });
+
+    test('记录不足 2 张时不产生非法下标', () {
+      final r = resolveCompareIndices(length: 1, initLeft: 0, initRight: 5);
+      expect(r.left, 0);
+      expect(r.right, 0);
     });
   });
 

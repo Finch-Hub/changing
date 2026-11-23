@@ -17,7 +17,8 @@ class AppTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 98 + MediaQuery.of(context).padding.bottom,
+      // U-07：总高 98 → 84，首屏多让出 14dp 给项目卡片（凸起快门仍 64dp）
+      height: 84 + MediaQuery.of(context).padding.bottom,
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
       decoration: const BoxDecoration(
         color: AppColors.surface,
@@ -50,11 +51,12 @@ class AppTabBar extends StatelessWidget {
                   width: 64,
                   height: 64,
                   decoration: const BoxDecoration(
-                    color: AppColors.primary,
+                    // T-02：中央圆用 primaryDark（白图标 4.09:1，达 UI 部件 3:1）
+                    color: AppColors.primaryDark,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Color(0x33E8783C),
+                        color: Color(0x33C95F1E),
                         blurRadius: 12,
                         offset: Offset(0, 4),
                       ),
@@ -105,8 +107,10 @@ class _TabItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              size: 26,
-              color: selected ? AppColors.primary : AppColors.textWeak,
+              // U-07：图标 26 → 24，配合 TabBar 收紧到 84dp
+              size: 24,
+              // T-01：未选中是可点击的导航项（非禁用态），用 textSecondary
+              color: selected ? AppColors.primaryDark : AppColors.textSecondary,
             ),
             const SizedBox(height: 4),
             Text(
@@ -114,7 +118,8 @@ class _TabItem extends StatelessWidget {
               style: TextStyle(
                 fontSize: AppDimens.fontCaption(context),
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                color: selected ? AppColors.primary : AppColors.textWeak,
+                color:
+                    selected ? AppColors.primaryDark : AppColors.textSecondary,
               ),
             ),
           ],
@@ -172,7 +177,11 @@ class SegmentedSelector<T> extends StatelessWidget {
                 child: Text(
                   labelOf(o),
                   style: TextStyle(
-                    fontSize: AppDimens.fontBody(context),
+                    // T-02：选中态 primaryDark on primaryLight 3.57:1，
+                    // 字号提到 18fp + w600 进大字档（3:1）达标
+                    fontSize: isSelected
+                        ? AppDimens.buttonFontSize
+                        : AppDimens.fontBody(context),
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                     color: isSelected
                         ? AppColors.primaryDark
@@ -212,8 +221,8 @@ class PrimaryButton extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
         ),
-        textStyle: TextStyle(
-            fontSize: AppDimens.fontBody(context), fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(
+            fontSize: AppDimens.buttonFontSize, fontWeight: FontWeight.w600),
       ),
       child: icon == null
           ? Text(label)
@@ -248,13 +257,15 @@ class SecondaryButton extends StatelessWidget {
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.textPrimary,
-        side: const BorderSide(color: AppColors.textWeak),
+        // T-04：描边由 textWeak 改 line + 实底填充，弱化「线框感」
+        side: const BorderSide(color: AppColors.line),
+        backgroundColor: AppColors.surface,
         minimumSize: const Size.fromHeight(52),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppDimens.radiusMedium),
         ),
-        textStyle: TextStyle(
-            fontSize: AppDimens.fontBody(context), fontWeight: FontWeight.w500),
+        textStyle: const TextStyle(
+            fontSize: AppDimens.buttonFontSize, fontWeight: FontWeight.w600),
       ),
       child: icon == null
           ? Text(label)
